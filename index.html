@@ -50,6 +50,8 @@
     .metric-title {
       font-size: 0.95rem;
       margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
     }
 
     .progress-bar-bg {
@@ -135,21 +137,28 @@
     }
 
     .input-group {
-      margin-top: 10px;
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-top: 8px;
     }
 
-    input[type="number"] {
+    input[type="number"], select {
       background: #2a2a2a;
       border: 1px solid #444;
       color: white;
-      padding: 8px;
+      padding: 10px;
       border-radius: 6px;
-      width: 90px;
-      text-align: center;
       font-size: 1rem;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .trust-badge {
@@ -173,29 +182,107 @@
       width: 100%;
       border-radius: 8px;
     }
+
+    /* Modal / Fragebogen Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    }
+
+    .modal-card h2 {
+      margin-top: 0;
+      color: var(--accent-protein);
+      font-size: 1.3rem;
+    }
   </style>
 </head>
 <body>
+
+<!-- ONBOARDING UMFRAGE MODAL -->
+<div class="modal-overlay" id="onboarding-modal" style="display: none;">
+  <div class="modal-card">
+    <h2>Dein Profil & Ziel</h2>
+    <p style="font-size: 0.85rem; color: var(--text-dim);">Lass uns deinen individuellen Bedarf an Protein und Kalorien berechnen.</p>
+    
+    <div class="input-group">
+      <label>Geschlecht:</label>
+      <select id="user-gender">
+        <option value="male">Männlich</option>
+        <option value="female">Weiblich</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label>Alter (Jahre):</label>
+      <input type="number" id="user-age" value="25" placeholder="z. B. 25">
+    </div>
+
+    <div class="input-group">
+      <label>Körpergröße (cm):</label>
+      <input type="number" id="user-height" value="175" placeholder="z. B. 175">
+    </div>
+
+    <div class="input-group">
+      <label>Gewicht (kg):</label>
+      <input type="number" id="user-weight" value="75" placeholder="z. B. 75">
+    </div>
+
+    <div class="input-group">
+      <label>Dein Hauptziel:</label>
+      <select id="user-goal">
+        <option value="build">Muskelaufbau / Training</option>
+        <option value="lose">Fett abnehmen</option>
+        <option value="maintain">Gewicht halten</option>
+      </select>
+    </div>
+
+    <button class="action-btn" style="width: 100%; margin-top: 20px;" onclick="saveUserProfile()">Ziele berechnen & starten</button>
+  </div>
+</div>
 
 <div class="container">
   <h1>Protein & Calorie Tracker</h1>
 
   <!-- Fortschrittsanzeige -->
   <div class="card">
-    <div class="metric-title">Protein: <span id="current-protein">0</span> / <span id="target-protein">140</span>g</div>
+    <div class="metric-title">
+      <span>Protein:</span>
+      <span><strong id="current-protein">0</strong> / <span id="target-protein">140</span>g</span>
+    </div>
     <div class="progress-bar-bg">
       <div class="progress-bar-fill-protein" id="progress-fill-protein"></div>
     </div>
 
-    <div class="metric-title">Kalorien: <span id="current-calories">0</span> / <span id="target-calories">2000</span> kcal</div>
+    <div class="metric-title">
+      <span>Kalorien:</span>
+      <span><strong id="current-calories">0</strong> / <span id="target-calories">2000</span> kcal</span>
+    </div>
     <div class="progress-bar-bg">
       <div class="progress-bar-fill-calories" id="progress-fill-calories"></div>
     </div>
 
-    <!-- Buttons zum Korrigieren/Zurücksetzen -->
+    <!-- Buttons zum Korrigieren/Zurücksetzen/Profil anpassen -->
     <div class="small-btn-group">
-      <button class="small-btn" onclick="undoLastEntry()">↩ Letzten Eintrag löschen</button>
-      <button class="small-btn" onclick="resetDay()">🗑 Tag zurücksetzen</button>
+      <button class="small-btn" onclick="undoLastEntry()"> Letzten Eintrag löschen</button>
+      <button class="small-btn" onclick="resetDay()"> Tag zurücksetzen</button>
+    </div>
+    <div class="small-btn-group">
+      <button class="small-btn" onclick="openOnboarding()"> Profil / Ziele anpassen</button>
     </div>
   </div>
 
@@ -224,14 +311,14 @@
     <div class="package-info" id="detected-package">Erkanntes Packungsgewicht: --</div>
     <div class="trust-badge" id="trust-badge">Analyse...</div>
 
-    <div class="input-group">
+    <div class="input-row">
       <label for="portion">Menge (Gramm):</label>
-      <input type="number" id="portion" value="100" oninput="recalculate()">
+      <input type="number" id="portion" value="100" style="width: 100px;" oninput="recalculate()">
     </div>
 
-    <div class="input-group">
+    <div class="input-row" style="margin-top: 15px;">
       <label>Berechnet:</label>
-      <div>
+      <div style="text-align: right;">
         <strong id="calc-protein" style="color: var(--accent-protein);">0g Protein</strong><br>
         <strong id="calc-calories" style="color: var(--accent-calories);">0 kcal</strong>
       </div>
@@ -246,7 +333,7 @@
 
 <script>
   // FÜGE HIER DEINEN OPENROUTER API-KEY EIN:
-  const API_KEY = "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";
+  const API_KEY = "sk-or-v1-DEIN_OPENROUTER_KEY_HIER_EINFUEGEN";
 
   let dailyProteinGoal = 140;
   let dailyCalorieGoal = 2000;
@@ -267,6 +354,86 @@
   const portionInput = document.getElementById('portion');
   const calcProteinText = document.getElementById('calc-protein');
   const calcCaloriesText = document.getElementById('calc-calories');
+
+  // --- INITIALISIERUNG & PERSISTENZ ---
+  window.addEventListener('DOMContentLoaded', () => {
+    loadProfileAndGoals();
+    loadDailyProgress();
+  });
+
+  function openOnboarding() {
+    document.getElementById('onboarding-modal').style.display = 'flex';
+  }
+
+  function saveUserProfile() {
+    const gender = document.getElementById('user-gender').value;
+    const age = parseFloat(document.getElementById('user-age').value) || 25;
+    const height = parseFloat(document.getElementById('user-height').value) || 175;
+    const weight = parseFloat(document.getElementById('user-weight').value) || 75;
+    const goal = document.getElementById('user-goal').value;
+
+    // Grundumsatzberechnung (Mifflin-St Jeor)
+    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    bmr += (gender === 'male') ? 5 : -161;
+
+    // Leistungsumsatz (Durchschnittliche Aktivität PAL 1.4)
+    let tdee = bmr * 1.4;
+
+    // Zielanpassung Kalorien & Protein
+    if (goal === 'build') {
+      dailyCalorieGoal = Math.round(tdee + 300);
+      dailyProteinGoal = Math.round(weight * 2.0); // 2g pro kg für Muskelaufbau
+    } else if (goal === 'lose') {
+      dailyCalorieGoal = Math.round(tdee - 500);
+      dailyProteinGoal = Math.round(weight * 2.2); // 2.2g pro kg für Muskelerhalt im Defizit
+    } else {
+      dailyCalorieGoal = Math.round(tdee);
+      dailyProteinGoal = Math.round(weight * 1.6); // Normaler Bedarf
+    }
+
+    localStorage.setItem('user_goals', JSON.stringify({
+      dailyProteinGoal,
+      dailyCalorieGoal,
+      gender, age, height, weight, goal
+    }));
+
+    document.getElementById('onboarding-modal').style.display = 'none';
+    updateUI();
+  }
+
+  function loadProfileAndGoals() {
+    const savedGoals = localStorage.getItem('user_goals');
+    if (savedGoals) {
+      const data = JSON.parse(savedGoals);
+      dailyProteinGoal = data.dailyProteinGoal || 140;
+      dailyCalorieGoal = data.dailyCalorieGoal || 2000;
+      
+      if (data.gender) document.getElementById('user-gender').value = data.gender;
+      if (data.age) document.getElementById('user-age').value = data.age;
+      if (data.height) document.getElementById('user-height').value = data.height;
+      if (data.weight) document.getElementById('user-weight').value = data.weight;
+      if (data.goal) document.getElementById('user-goal').value = data.goal;
+    } else {
+      openOnboarding();
+    }
+  }
+
+  function saveDailyProgress() {
+    localStorage.setItem('daily_progress', JSON.stringify({
+      currentProteinTotal,
+      currentCalorieTotal
+    }));
+  }
+
+  function loadDailyProgress() {
+    const savedProgress = localStorage.getItem('daily_progress');
+    if (savedProgress) {
+      const data = JSON.parse(savedProgress);
+      currentProteinTotal = data.currentProteinTotal || 0;
+      currentCalorieTotal = data.currentCalorieTotal || 0;
+    }
+    updateUI();
+  }
 
   // --- 1. KI ERKENNUNG MIT BILD-OPTIMIERUNG ---
   photoInput.addEventListener('change', function() {
@@ -379,7 +546,6 @@
       detectedProteinPer100g = result.proteinPer100g || 0;
       detectedCaloriesPer100g = result.caloriesPer100g || 0;
       
-      // Nutze Packungsgewicht direkt im Eingabefeld
       portionInput.value = pkgGrams;
       recalculate();
 
@@ -469,6 +635,7 @@
     currentProteinTotal += addedProtein;
     currentCalorieTotal += addedCalories;
     
+    saveDailyProgress();
     updateUI();
     cancelScan();
   }
@@ -488,6 +655,7 @@
       
       lastAddedProtein = 0;
       lastAddedCalories = 0;
+      saveDailyProgress();
       updateUI();
     }
   }
@@ -498,11 +666,15 @@
       currentCalorieTotal = 0;
       lastAddedProtein = 0;
       lastAddedCalories = 0;
+      saveDailyProgress();
       updateUI();
     }
   }
 
   function updateUI() {
+    document.getElementById('target-protein').innerText = dailyProteinGoal;
+    document.getElementById('target-calories').innerText = dailyCalorieGoal;
+
     document.getElementById('current-protein').innerText = currentProteinTotal.toFixed(1);
     let proteinPercentage = Math.min((currentProteinTotal / dailyProteinGoal) * 100, 100);
     document.getElementById('progress-fill-protein').style.width = proteinPercentage + "%";
