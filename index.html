@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Protein & Calorie Tracker</title>
+  <title>Protein & Calorie Tracker Pro</title>
   <script src="https://unpkg.com/@zxing/library@latest"></script>
   <style>
     :root {
@@ -11,6 +11,8 @@
       --card-bg: #1e1e1e;
       --accent-protein: #FF5722;
       --accent-calories: #FFC107;
+      --accent-green: #4CAF50;
+      --accent-red: #F44336;
       --text-color: #ffffff;
       --text-dim: #aaa;
       --danger-color: #d32f2f;
@@ -54,17 +56,23 @@
       justify-content: space-between;
     }
 
+    /* Fortschrittsbalken mit Markierungsstrichen */
+    .progress-container {
+      position: relative;
+      margin-top: 8px;
+      margin-bottom: 16px;
+    }
+
     .progress-bar-bg {
       background: #333;
-      height: 14px;
-      border-radius: 7px;
+      height: 18px;
+      border-radius: 9px;
       overflow: hidden;
-      margin-top: 6px;
-      margin-bottom: 12px;
+      position: relative;
     }
 
     .progress-bar-fill-protein {
-      background: var(--accent-protein);
+      background: linear-gradient(90deg, #ff7043, #FF5722);
       height: 100%;
       width: 0%;
       transition: width 0.3s ease;
@@ -76,6 +84,47 @@
       width: 0%;
       transition: width 0.3s ease;
     }
+
+    /* Striche & Schwellenwerte auf dem Balken */
+    .marker-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .marker-min {
+      background-color: var(--accent-red);
+      box-shadow: 0 0 4px var(--accent-red);
+    }
+
+    .marker-opt {
+      background-color: #00E676;
+      box-shadow: 0 0 4px #00E676;
+    }
+
+    .marker-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-top: 4px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .status-danger { background: rgba(244, 67, 54, 0.2); color: #FF8A80; border: 1px solid #F44336; }
+    .status-ok { background: rgba(255, 193, 7, 0.2); color: #FFE082; border: 1px solid #FFC107; }
+    .status-growth { background: rgba(76, 175, 80, 0.2); color: #B9F6CA; border: 1px solid #4CAF50; }
 
     .btn-group {
       display: flex;
@@ -150,7 +199,7 @@
       margin-top: 8px;
     }
 
-    input[type="number"], select {
+    input[type="number"], input[type="text"], select {
       background: #2a2a2a;
       border: 1px solid #444;
       color: white;
@@ -209,6 +258,21 @@
       color: var(--accent-protein);
       font-size: 1.3rem;
     }
+
+    .ai-hint-box {
+      background: #262626;
+      border: 1px dashed #555;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .ai-hint-box label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      display: block;
+      margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
@@ -264,32 +328,58 @@
       <span>Protein:</span>
       <span><strong id="current-protein">0</strong> / <span id="target-protein">140</span>g</span>
     </div>
-    <div class="progress-bar-bg">
-      <div class="progress-bar-fill-protein" id="progress-fill-protein"></div>
+
+    <!-- Protein Fortschrittsbalken mit Strichen & Zonen -->
+    <div class="progress-container">
+      <div class="progress-bar-bg">
+        <!-- Roter Strich: Untergrenze (Muskelabbau droht) -->
+        <div class="marker-line marker-min" id="marker-min" title="Minimum für Muskelerhalt"></div>
+        <!-- Grüner Strich: Optimaler Muskelaufbau -->
+        <div class="marker-line marker-opt" id="marker-opt" title="Muskelaufbau-Ziel erreicht"></div>
+        
+        <div class="progress-bar-fill-protein" id="progress-fill-protein"></div>
+      </div>
+      <div class="marker-labels">
+        <span>0g</span>
+        <span style="color: var(--accent-red);" id="min-label">⚠️ <span id="min-grams">80</span>g (Muskelverlust)</span>
+        <span style="color: #00E676;" id="opt-label">💪 <span id="opt-grams">140</span>g (Aufbau)</span>
+      </div>
     </div>
 
-    <div class="metric-title">
+    <div id="protein-status-badge" class="status-badge status-danger">
+      ⚠️ Zu wenig Protein! Risiko für Muskelabbau.
+    </div>
+
+    <div class="metric-title" style="margin-top: 15px;">
       <span>Kalorien:</span>
       <span><strong id="current-calories">0</strong> / <span id="target-calories">2000</span> kcal</span>
     </div>
-    <div class="progress-bar-bg">
-      <div class="progress-bar-fill-calories" id="progress-fill-calories"></div>
+    <div class="progress-container">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill-calories" id="progress-fill-calories"></div>
+      </div>
     </div>
 
     <!-- Buttons zum Korrigieren/Zurücksetzen/Profil anpassen -->
     <div class="small-btn-group">
-      <button class="small-btn" onclick="undoLastEntry()"> Letzten Eintrag löschen</button>
-      <button class="small-btn" onclick="resetDay()"> Tag zurücksetzen</button>
+      <button class="small-btn" onclick="undoLastEntry()">↩ Letzten Eintrag löschen</button>
+      <button class="small-btn" onclick="resetDay()">🗑 Tag zurücksetzen</button>
     </div>
     <div class="small-btn-group">
-      <button class="small-btn" onclick="openOnboarding()"> Profil / Ziele anpassen</button>
+      <button class="small-btn" onclick="openOnboarding()">⚙️ Profil / Ziele anpassen</button>
     </div>
+  </div>
+
+  <!-- KI Hinweistext / Produktname Hilfe -->
+  <div class="ai-hint-box">
+    <label for="ai-hint-input">💡 Optional: Produktname / Hinweis für die KI:</label>
+    <input type="text" id="ai-hint-input" placeholder="z. B. Ehrmann Protein Pudding, Hähnchen, Whey...">
   </div>
 
   <!-- Aktionen -->
   <div class="btn-group">
     <label class="action-btn">
-      📷 Essen / Packung scannen
+      📷 Foto scannen
       <input type="file" accept="image/*" capture="environment" id="photo-input">
     </label>
     <button class="action-btn secondary-btn" onclick="startBarcodeScanner()">
@@ -335,7 +425,9 @@
   // FÜGE HIER DEINEN OPENROUTER API-KEY EIN:
   const API_KEY = "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";
 
-  let dailyProteinGoal = 140;
+  let userWeight = 75;
+  let dailyProteinGoal = 140; // Optimales Muskelaufbau-Ziel
+  let minProteinGoal = 80;    // Minimum (Unterhalb = Risiko für Muskelverlust)
   let dailyCalorieGoal = 2000;
 
   let currentProteinTotal = 0;
@@ -369,32 +461,36 @@
     const gender = document.getElementById('user-gender').value;
     const age = parseFloat(document.getElementById('user-age').value) || 25;
     const height = parseFloat(document.getElementById('user-height').value) || 175;
-    const weight = parseFloat(document.getElementById('user-weight').value) || 75;
+    userWeight = parseFloat(document.getElementById('user-weight').value) || 75;
     const goal = document.getElementById('user-goal').value;
 
     // Grundumsatzberechnung (Mifflin-St Jeor)
-    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    let bmr = (10 * userWeight) + (6.25 * height) - (5 * age);
     bmr += (gender === 'male') ? 5 : -161;
 
     // Leistungsumsatz (Durchschnittliche Aktivität PAL 1.4)
     let tdee = bmr * 1.4;
 
-    // Zielanpassung Kalorien & Protein
+    // Mindestgrenze für Muskelerhalt (ca. 1.2g pro kg Körpergewicht)
+    minProteinGoal = Math.round(userWeight * 1.2);
+
+    // Zielanpassung Kalorien & Optimales Protein
     if (goal === 'build') {
       dailyCalorieGoal = Math.round(tdee + 300);
-      dailyProteinGoal = Math.round(weight * 2.0); // 2g pro kg für Muskelaufbau
+      dailyProteinGoal = Math.round(userWeight * 2.0); // 2.0g/kg für optimalen Muskelaufbau
     } else if (goal === 'lose') {
       dailyCalorieGoal = Math.round(tdee - 500);
-      dailyProteinGoal = Math.round(weight * 2.2); // 2.2g pro kg für Muskelerhalt im Defizit
+      dailyProteinGoal = Math.round(userWeight * 2.2); // 2.2g/kg für Muskelerhalt im Defizit
     } else {
       dailyCalorieGoal = Math.round(tdee);
-      dailyProteinGoal = Math.round(weight * 1.6); // Normaler Bedarf
+      dailyProteinGoal = Math.round(userWeight * 1.6);
     }
 
     localStorage.setItem('user_goals', JSON.stringify({
       dailyProteinGoal,
+      minProteinGoal,
       dailyCalorieGoal,
-      gender, age, height, weight, goal
+      gender, age, height, weight: userWeight, goal
     }));
 
     document.getElementById('onboarding-modal').style.display = 'none';
@@ -405,7 +501,9 @@
     const savedGoals = localStorage.getItem('user_goals');
     if (savedGoals) {
       const data = JSON.parse(savedGoals);
-      dailyProteinGoal = data.dailyProteinGoal || 140;
+      userWeight = data.weight || 75;
+      dailyProteinGoal = data.dailyProteinGoal || Math.round(userWeight * 2.0);
+      minProteinGoal = data.minProteinGoal || Math.round(userWeight * 1.2);
       dailyCalorieGoal = data.dailyCalorieGoal || 2000;
       
       if (data.gender) document.getElementById('user-gender').value = data.gender;
@@ -435,7 +533,7 @@
     updateUI();
   }
 
-  // --- 1. KI ERKENNUNG MIT BILD-OPTIMIERUNG ---
+  // --- 1. KI ERKENNUNG MIT BILD-OPTIMIERUNG UND HINWEIS-TEXT ---
   photoInput.addEventListener('change', function() {
     if (this.files && this.files[0]) {
       const file = this.files[0];
@@ -489,6 +587,15 @@
   }
 
   async function analyzeWithOpenRouter(base64Data) {
+    const userHint = document.getElementById('ai-hint-input').value.trim();
+    let promptInstruction = "Identify the main food or product in this image. Estimate nutritional values per 100g AND identify or estimate the product's standard full package weight in grams.";
+    
+    if (userHint !== "") {
+      promptInstruction += ` USER HINT/PRODUCT NAME: "${userHint}". Use this hint to precisely identify the exact product and its nutritional values.`;
+    }
+
+    promptInstruction += " Return ONLY raw JSON with keys: foodName (string in German), proteinPer100g (number), caloriesPer100g (number), totalPackageGrams (number or 100 if unknown/plate food), confidencePercent (number 0-100). Example: {\"foodName\": \"Ehrmann High Protein Pudding\", \"proteinPer100g\": 10, \"caloriesPer100g\": 76, \"totalPackageGrams\": 200, \"confidencePercent\": 95}";
+
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -506,7 +613,7 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "Identify the main food or product in this image. Estimate nutritional values per 100g AND identify or estimate the product's standard full package weight in grams (even if not explicitly written, use product recognition knowledge). Return ONLY raw JSON with keys: foodName (string in German), proteinPer100g (number), caloriesPer100g (number), totalPackageGrams (number or 100 if unknown/plate food), confidencePercent (number 0-100). Example: {\"foodName\": \"Ehrmann High Protein Pudding\", \"proteinPer100g\": 10, \"caloriesPer100g\": 76, \"totalPackageGrams\": 200, \"confidencePercent\": 95}"
+                  "text": promptInstruction
                 },
                 {
                   "type": "image_url",
@@ -644,6 +751,7 @@
     resultCard.style.display = 'none';
     photoInput.value = "";
     previewImg.src = "";
+    document.getElementById('ai-hint-input').value = ""; // Reset KI Hinweis
     detectedProteinPer100g = 0;
     detectedCaloriesPer100g = 0;
   }
@@ -675,9 +783,30 @@
     document.getElementById('target-protein').innerText = dailyProteinGoal;
     document.getElementById('target-calories').innerText = dailyCalorieGoal;
 
+    document.getElementById('min-grams').innerText = minProteinGoal;
+    document.getElementById('opt-grams').innerText = dailyProteinGoal;
+
+    // Position der Striche auf dem Fortschrittsbalken berechnen (%)
+    let minPercentage = Math.min((minProteinGoal / dailyProteinGoal) * 100, 95);
+    document.getElementById('marker-min').style.left = minPercentage + "%";
+    document.getElementById('marker-opt').style.left = "99%"; // Am Ende des Ziels
+
     document.getElementById('current-protein').innerText = currentProteinTotal.toFixed(1);
-    let proteinPercentage = Math.min((currentProteinTotal / dailyProteinGoal) * 100, 100);
-    document.getElementById('progress-fill-protein').style.width = proteinPercentage + "%";
+    let proteinFillPercent = Math.min((currentProteinTotal / dailyProteinGoal) * 100, 100);
+    document.getElementById('progress-fill-protein').style.width = proteinFillPercent + "%";
+
+    // Status Badge Text & Farbe dynamisch aktualisieren
+    const statusBadge = document.getElementById('protein-status-badge');
+    if (currentProteinTotal < minProteinGoal) {
+      statusBadge.className = "status-badge status-danger";
+      statusBadge.innerText = `⚠️ Unter ${minProteinGoal}g: Gefahr von Muskelabbau!`;
+    } else if (currentProteinTotal < dailyProteinGoal) {
+      statusBadge.className = "status-badge status-ok";
+      statusBadge.innerText = `⚖️ Muskelerhalt gesichert! Noch ${(dailyProteinGoal - currentProteinTotal).toFixed(1)}g bis zum optimalen Aufbau.`;
+    } else {
+      statusBadge.className = "status-badge status-growth";
+      statusBadge.innerText = `💪 Optimaler Muskelaufbau erreicht! Super Job!`;
+    }
 
     document.getElementById('current-calories').innerText = Math.round(currentCalorieTotal);
     let caloriePercentage = Math.min((currentCalorieTotal / dailyCalorieGoal) * 100, 100);
