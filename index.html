@@ -380,7 +380,7 @@
 </div>
 
 <script>
-  // EINGESETZTER HUGGING FACE TOKEN
+  // HUGGING FACE TOKEN
   const HF_API_KEY = "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";
 
   let userWeight = 75;
@@ -518,7 +518,7 @@
     recalculate();
   }
 
-  // KOSTENLOSER HUGGING FACE FOTO SCAN
+  // KOSTENLOSER FOTO SCAN (MIT KALTSTART-AUTOMATIK)
   async function processPhotoScan(input) {
     if (!input.files || !input.files[0]) return;
 
@@ -538,7 +538,7 @@
     try {
       const arrayBuffer = await file.arrayBuffer();
 
-      const response = await fetch(
+      let response = await fetch(
         "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
         {
           headers: { 
@@ -549,6 +549,24 @@
           body: arrayBuffer,
         }
       );
+
+      if (response.status === 503) {
+        const errData = await response.json().catch(() => ({}));
+        const waitTime = Math.min((errData.estimated_time || 15) * 1000, 20000);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+
+        response = await fetch(
+          "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
+          {
+            headers: { 
+              Authorization: `Bearer ${HF_API_KEY}`,
+              "Content-Type": "application/octet-stream"
+            },
+            method: "POST",
+            body: arrayBuffer,
+          }
+        );
+      }
 
       clearInterval(timerInterval);
       loadingCard.style.display = 'none';
