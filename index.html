@@ -198,7 +198,7 @@
   const portionInput = document.getElementById('portion');
   const calcProteinText = document.getElementById('calc-protein');
 
-  // --- 1. KI ERKENNUNG (OpenRouter) ---
+  // --- 1. KI ERKENNUNG (OpenRouter mit Qwen-2-VL) ---
   photoInput.addEventListener('change', async function() {
     if (this.files && this.files[0]) {
       const file = this.files[0];
@@ -225,17 +225,19 @@
         method: "POST",
         headers: {
           "Authorization": `Bearer ${API_KEY}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "Protein Tracker",
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
+          "model": "qwen/qwen-2-vl-7b-instruct:free",
           "messages": [
             {
               "role": "user",
               "content": [
                 {
                   "type": "text",
-                  "text": "Analysiere dieses Essen auf dem Bild. Antworte AUSSCHLIESSLICH im JSON-Format ohne weiteren Text: {\"foodName\": \"Name des Essens\", \"proteinPer100g\": Zahl_Gramm, \"confidencePercent\": Zahl_von_0_bis_100}"
+                  "text": "Analysiere dieses Essen auf dem Bild. Antworte AUSSCHLIESSLICH im JSON-Format ohne Markdown oder Extra-Text: {\"foodName\": \"Name des Essens\", \"proteinPer100g\": Zahl_Gramm, \"confidencePercent\": Zahl_von_0_bis_100}"
                 },
                 {
                   "type": "image_url",
@@ -250,6 +252,13 @@
       });
 
       const data = await response.json();
+
+      if (data.error) {
+        document.getElementById('detected-food').innerText = "API-Fehler";
+        document.getElementById('trust-badge').innerText = data.error.message || "Fehler von OpenRouter";
+        return;
+      }
+
       const rawText = data.choices[0].message.content.trim();
       const result = JSON.parse(rawText.replace(/```json|```/g, ""));
 
@@ -263,7 +272,7 @@
     } catch (error) {
       console.error(error);
       document.getElementById('detected-food').innerText = "Erkennungsfehler";
-      document.getElementById('trust-badge').innerText = "Prüfe den API-Key in der Datei.";
+      document.getElementById('trust-badge').innerText = "Prüfe Konsole (F12) auf Details.";
     }
   }
 
