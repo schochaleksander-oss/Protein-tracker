@@ -518,7 +518,7 @@
     recalculate();
   }
 
-  // KOSTENLOSER FOTO SCAN (MIT KALTSTART-AUTOMATIK)
+  // GEFIXTER FOTO SCAN MIT VISION MODELL
   async function processPhotoScan(input) {
     if (!input.files || !input.files[0]) return;
 
@@ -536,54 +536,51 @@
     }, 1000);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
+      const base64Image = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
 
-      let response = await fetch(
-        "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
+      const response = await fetch(
+        "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-11B-Vision-Instruct",
         {
           headers: { 
             Authorization: `Bearer ${HF_API_KEY}`,
-            "Content-Type": "application/octet-stream"
+            "Content-Type": "application/json"
           },
           method: "POST",
-          body: arrayBuffer,
+          body: JSON.stringify({
+            inputs: {
+              image: base64Image,
+              prompt: "What is this food? Answer with just the name of the food item in German."
+            }
+          }),
         }
       );
-
-      if (response.status === 503) {
-        const errData = await response.json().catch(() => ({}));
-        const waitTime = Math.min((errData.estimated_time || 15) * 1000, 20000);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-
-        response = await fetch(
-          "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
-          {
-            headers: { 
-              Authorization: `Bearer ${HF_API_KEY}`,
-              "Content-Type": "application/octet-stream"
-            },
-            method: "POST",
-            body: arrayBuffer,
-          }
-        );
-      }
 
       clearInterval(timerInterval);
       loadingCard.style.display = 'none';
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        alert(`HuggingFace Fehler (${response.status}): ${errData.error || 'Anfrage fehlgeschlagen'}`);
+        alert(`API Fehler (${response.status}): ${errData.error || 'Anfrage fehlgeschlagen'}`);
         return;
       }
 
       const result = await response.json();
-      
-      if (result && result[0] && result[0].generated_text) {
-        const detectedDescription = result[0].generated_text;
-        document.getElementById('food-search').value = detectedDescription;
-        handleSearch(detectedDescription);
-        alert(`Erkannt: "${detectedDescription}". Bitte wähle das passende Gericht aus der Liste.`);
+      let foodName = "";
+
+      if (Array.isArray(result) && result[0]?.generated_text) {
+        foodName = result[0].generated_text.trim();
+      } else if (result.generated_text) {
+        foodName = result.generated_text.trim();
+      }
+
+      if (foodName) {
+        document.getElementById('food-search').value = foodName;
+        handleSearch(foodName);
+        alert(`Erkannt: "${foodName}". Bitte wähle das passende Gericht aus der Liste.`);
       } else {
         alert("Es konnte kein Lebensmittel auf dem Bild erkannt werden.");
       }
