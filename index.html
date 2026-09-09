@@ -8,7 +8,7 @@
     :root {
       --bg-color: #121212;
       --card-bg: #1e1e1e;
-      --accent-color: #FF5722; /* Orange-Rot */
+      --accent-color: #FF5722;
       --text-color: #ffffff;
       --text-dim: #aaa;
     }
@@ -69,10 +69,33 @@
       font-weight: bold;
       cursor: pointer;
       margin-bottom: 15px;
+      box-sizing: border-box;
+      border: none;
     }
 
     input[type="file"] {
       display: none;
+    }
+
+    .food-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .food-btn {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .food-btn:active {
+      background: var(--accent-color);
     }
 
     .input-group {
@@ -94,7 +117,7 @@
 
     .trust-badge {
       font-size: 0.85rem;
-      color: #4CAF50;
+      color: #FF9800;
       margin-top: 5px;
     }
   </style>
@@ -120,17 +143,24 @@
 
   <!-- Ergebnisse & Anpassung -->
   <div class="card" id="result-card" style="display: none;">
-    <h4 id="detected-food">Erkanntes Essen: Spiegelei</h4>
-    <div class="trust-badge" id="trust-score">KI-Vertrauen: 88% (Sehr hoch)</div>
+    <h4 id="detected-food">Essen auswählen:</h4>
+    <div class="trust-badge">Manuelle Lebensmittelauswahl</div>
+
+    <div class="food-selector">
+      <button class="food-btn" onclick="selectFood('ei')">🍳 Ei (13g/100g)</button>
+      <button class="food-btn" onclick="selectFood('haehnchen')">🍗 Hähnchen (31g/100g)</button>
+      <button class="food-btn" onclick="selectFood('quark')">🥣 Magerquark (12g/100g)</button>
+      <button class="food-btn" onclick="selectFood('apfel')">🍎 Apfel (0.3g/100g)</button>
+    </div>
 
     <div class="input-group">
       <label for="portion">Portionsgröße (g):</label>
-      <input type="number" id="portion" value="100" onchange="recalculate()">
+      <input type="number" id="portion" value="100" oninput="recalculate()">
     </div>
 
     <div class="input-group">
       <label>Berechnetes Protein:</label>
-      <strong id="calc-protein">13g</strong>
+      <strong id="calc-protein">0g</strong>
     </div>
 
     <button class="upload-btn" style="margin-top: 15px;" onclick="addProtein()">Zum Tagesziel hinzufügen</button>
@@ -140,7 +170,15 @@
 <script>
   let dailyGoal = 140;
   let currentTotal = 0;
-  let baseProteinPer100g = 13; // Beispielwert für Ei
+
+  const foodDatabase = {
+    "ei": { name: "Gebratenes Ei", protein: 13 },
+    "haehnchen": { name: "Hähnchenbrust", protein: 31 },
+    "quark": { name: "Magerquark", protein: 12 },
+    "apfel": { name: "Apfel", protein: 0.3 }
+  };
+
+  let selectedProteinPer100g = 0;
 
   const photoInput = document.getElementById('photo-input');
   const resultCard = document.getElementById('result-card');
@@ -149,25 +187,26 @@
 
   photoInput.addEventListener('change', function() {
     if (this.files && this.files[0]) {
-      // Simulation der KI-Erkennung
-      document.getElementById('detected-food').innerText = "Erkannt: Gebratenes Ei";
-      document.getElementById('trust-score').innerText = "KI-Vertrauen: 85% (Klar erkennbar)";
-      baseProteinPer100g = 13; 
-      portionInput.value = 100;
-      recalculate();
       resultCard.style.display = 'block';
     }
   });
 
+  function selectFood(key) {
+    const food = foodDatabase[key];
+    document.getElementById('detected-food').innerText = "Ausgewählt: " + food.name;
+    selectedProteinPer100g = food.protein;
+    recalculate();
+  }
+
   function recalculate() {
     let grams = parseFloat(portionInput.value) || 0;
-    let total = (grams / 100) * baseProteinPer100g;
+    let total = (grams / 100) * selectedProteinPer100g;
     calcProteinText.innerText = total.toFixed(1) + "g";
   }
 
   function addProtein() {
     let grams = parseFloat(portionInput.value) || 0;
-    let addedProtein = (grams / 100) * baseProteinPer100g;
+    let addedProtein = (grams / 100) * selectedProteinPer100g;
     currentTotal += addedProtein;
     
     document.getElementById('current-protein').innerText = currentTotal.toFixed(1);
