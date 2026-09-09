@@ -12,6 +12,7 @@
       --accent-color: #FF5722;
       --text-color: #ffffff;
       --text-dim: #aaa;
+      --danger-color: #d32f2f;
     }
 
     body {
@@ -84,6 +85,28 @@
       border: 1px solid #555;
     }
 
+    .danger-btn {
+      background: var(--danger-color);
+      color: white;
+    }
+
+    .small-btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .small-btn {
+      flex: 1;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: var(--text-dim);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
     input[type="file"] {
       display: none;
     }
@@ -143,6 +166,11 @@
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
+    <!-- Buttons zum Korrigieren/Zurücksetzen -->
+    <div class="small-btn-group">
+      <button class="small-btn" onclick="undoLastEntry()">↩ Letzten Eintrag löschen</button>
+      <button class="small-btn" onclick="resetDay()">🗑 Tag zurücksetzen</button>
+    </div>
   </div>
 
   <!-- Aktionen -->
@@ -179,16 +207,20 @@
       <strong id="calc-protein">0g</strong>
     </div>
 
-    <button class="action-btn" style="margin-top: 15px; width:100%;" onclick="addProtein()">Zum Tagesziel hinzufügen</button>
+    <div class="btn-group" style="margin-top: 15px; margin-bottom: 0;">
+      <button class="action-btn" onclick="addProtein()">Hinzufügen</button>
+      <button class="action-btn danger-btn" onclick="cancelScan()">Abbrechen</button>
+    </div>
   </div>
 </div>
 
 <script>
   // FÜGE HIER DEINEN OPENROUTER API-KEY EIN:
-  const API_KEY = "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";
+  const API_KEY = "sk-or-v1-DEIN_OPENROUTER_KEY_HIER_EINFUEGEN";
 
   let dailyGoal = 140;
   let currentTotal = 0;
+  let lastAddedAmount = 0; // Speichert die letzte Einnahme für "Rückgängig"
   let detectedProteinPer100g = 0;
   let codeReader = null;
 
@@ -198,7 +230,7 @@
   const portionInput = document.getElementById('portion');
   const calcProteinText = document.getElementById('calc-protein');
 
-  // --- 1. KI ERKENNUNG (OpenRouter mit Qwen-2-VL) ---
+  // --- 1. KI ERKENNUNG (Google Gemma 3 27B) ---
   photoInput.addEventListener('change', async function() {
     if (this.files && this.files[0]) {
       const file = this.files[0];
@@ -324,7 +356,7 @@
     }
   }
 
-  // --- 3. RECHNER UND FORTSCHRITT ---
+  // --- 3. RECHNER UND KORREKTUR-FUNKTIONEN ---
   function recalculate() {
     let grams = parseFloat(portionInput.value) || 0;
     let total = (grams / 100) * detectedProteinPer100g;
@@ -334,14 +366,44 @@
   function addProtein() {
     let grams = parseFloat(portionInput.value) || 0;
     let addedProtein = (grams / 100) * detectedProteinPer100g;
+    
+    lastAddedAmount = addedProtein; // Merken für "Rückgängig"
     currentTotal += addedProtein;
     
+    updateUI();
+    cancelScan(); // Karte ausblenden & Formular leeren
+  }
+
+  // Aktuellen Scan abbrechen / verwerfen
+  function cancelScan() {
+    resultCard.style.display = 'none';
+    photoInput.value = ""; // Bildauswahl zurücksetzen
+    previewImg.src = "";
+    detectedProteinPer100g = 0;
+  }
+
+  // Letzten Eintrag rückgängig machen
+  function undoLastEntry() {
+    if (lastAddedAmount > 0) {
+      currentTotal = Math.max(0, currentTotal - lastAddedAmount);
+      lastAddedAmount = 0; // Rückgängig-Speicher leeren
+      updateUI();
+    }
+  }
+
+  // Den gesamten Tag auf 0g zurücksetzen
+  function resetDay() {
+    if (confirm("Möchtest du das heutige Proteinziel wirklich auf 0g zurücksetzen?")) {
+      currentTotal = 0;
+      lastAddedAmount = 0;
+      updateUI();
+    }
+  }
+
+  function updateUI() {
     document.getElementById('current-protein').innerText = currentTotal.toFixed(1);
-    
     let percentage = Math.min((currentTotal / dailyGoal) * 100, 100);
     document.getElementById('progress-fill').style.width = percentage + "%";
-    
-    resultCard.style.display = 'none';
   }
 </script>
 
