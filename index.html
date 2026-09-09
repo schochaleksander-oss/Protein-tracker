@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Protein Tracker</title>
+  <title>KI Protein Tracker</title>
+  <!-- Kostenlose KI-Bibliotheken direkt von Google CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
   <style>
     :root {
       --bg-color: #121212;
@@ -33,6 +36,7 @@
       font-size: 1.5rem;
       text-align: center;
       color: var(--accent-color);
+      margin-bottom: 20px;
     }
 
     .card {
@@ -64,38 +68,27 @@
       background: var(--accent-color);
       color: white;
       text-align: center;
-      padding: 12px;
+      padding: 14px;
       border-radius: 8px;
       font-weight: bold;
       cursor: pointer;
       margin-bottom: 15px;
       box-sizing: border-box;
       border: none;
+      font-size: 1rem;
     }
 
     input[type="file"] {
       display: none;
     }
 
-    .food-selector {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 10px 0;
-    }
-
-    .food-btn {
-      background: #2a2a2a;
-      border: 1px solid #444;
-      color: white;
-      padding: 10px;
+    #preview-img {
+      width: 100%;
       border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-
-    .food-btn:active {
-      background: var(--accent-color);
+      margin-bottom: 10px;
+      display: none;
+      max-height: 200px;
+      object-fit: cover;
     }
 
     .input-group {
@@ -113,21 +106,29 @@
       border-radius: 6px;
       width: 80px;
       text-align: center;
+      font-size: 1rem;
     }
 
     .trust-badge {
       font-size: 0.85rem;
-      color: #FF9800;
+      color: #4CAF50;
       margin-top: 5px;
+    }
+
+    .status-text {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>Protein Tracker</h1>
+  <h1>KI Protein Tracker</h1>
 
-  <!-- Fortschritsanzeige -->
+  <!-- Fortschrittsanzeige -->
   <div class="card">
     <h3>Tagesziel: <span id="current-protein">0</span> / <span id="target-protein">140</span>g Protein</h3>
     <div class="progress-bar-bg">
@@ -135,26 +136,22 @@
     </div>
   </div>
 
+  <div class="status-text" id="model-status">Lade KI-Modell auf das Handy...</div>
+
   <!-- Foto Upload -->
-  <label class="upload-btn">
-    📷 Essen fotografieren
+  <label class="upload-btn" id="upload-label" style="opacity: 0.5; pointer-events: none;">
+    📷 Foto machen & Scannen
     <input type="file" accept="image/*" capture="environment" id="photo-input">
   </label>
 
   <!-- Ergebnisse & Anpassung -->
   <div class="card" id="result-card" style="display: none;">
-    <h4 id="detected-food">Essen auswählen:</h4>
-    <div class="trust-badge">Manuelle Lebensmittelauswahl</div>
-
-    <div class="food-selector">
-      <button class="food-btn" onclick="selectFood('ei')">🍳 Ei (13g/100g)</button>
-      <button class="food-btn" onclick="selectFood('haehnchen')">🍗 Hähnchen (31g/100g)</button>
-      <button class="food-btn" onclick="selectFood('quark')">🥣 Magerquark (12g/100g)</button>
-      <button class="food-btn" onclick="selectFood('apfel')">🍎 Apfel (0.3g/100g)</button>
-    </div>
+    <img id="preview-img" src="" alt="Vorschau">
+    <h4 id="detected-food">Erkannt: -</h4>
+    <div class="trust-badge" id="trust-badge">KI-Vertrauen: 0%</div>
 
     <div class="input-group">
-      <label for="portion">Portionsgröße (g):</label>
+      <label for="portion">Menge anpassen (g):</label>
       <input type="number" id="portion" value="100" oninput="recalculate()">
     </div>
 
@@ -168,45 +165,97 @@
 </div>
 
 <script>
+  let model = null;
   let dailyGoal = 140;
   let currentTotal = 0;
+  let detectedProteinPer100g = 0;
 
-  const foodDatabase = {
-    "ei": { name: "Gebratenes Ei", protein: 13 },
-    "haehnchen": { name: "Hähnchenbrust", protein: 31 },
-    "quark": { name: "Magerquark", protein: 12 },
-    "apfel": { name: "Apfel", protein: 0.3 }
+  // Nährwert-Datenbank für von der KI erkannte Objekte
+  const nutritionDB = {
+    "egg": { name: "Ei", protein: 13 },
+    "hen": { name: "Hähnchen", protein: 27 },
+    "banana": { name: "Banane", protein: 1.1 },
+    "apple": { name: "Apfel", protein: 0.3 },
+    "bread": { name: "Brot", protein: 9 },
+    "cheese": { name: "Käse", protein: 25 },
+    "steak": { name: "Fleisch / Steak", protein: 26 },
+    "pizza": { name: "Pizza", protein: 11 },
+    "hamburger": { name: "Burger", protein: 17 }
   };
-
-  let selectedProteinPer100g = 0;
 
   const photoInput = document.getElementById('photo-input');
   const resultCard = document.getElementById('result-card');
+  const previewImg = document.getElementById('preview-img');
   const portionInput = document.getElementById('portion');
   const calcProteinText = document.getElementById('calc-protein');
 
+  // KI-Modell beim Start laden
+  async function loadModel() {
+    model = await mobilenet.load();
+    document.getElementById('model-status').innerText = "KI bereit! Mach ein Foto von deinem Essen.";
+    document.getElementById('upload-label').style.opacity = "1";
+    document.getElementById('upload-label').style.pointerEvents = "auto";
+  }
+  loadModel();
+
   photoInput.addEventListener('change', function() {
     if (this.files && this.files[0]) {
-      resultCard.style.display = 'block';
+      const file = this.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        previewImg.src = e.target.result;
+        previewImg.style.display = 'block';
+        resultCard.style.display = 'block';
+
+        previewImg.onload = async function() {
+          analyzeImage();
+        };
+      };
+      reader.readAsDataURL(file);
     }
   });
 
-  function selectFood(key) {
-    const food = foodDatabase[key];
-    document.getElementById('detected-food').innerText = "Ausgewählt: " + food.name;
-    selectedProteinPer100g = food.protein;
-    recalculate();
+  async function analyzeImage() {
+    document.getElementById('detected-food').innerText = "KI analysiert das Foto...";
+    document.getElementById('trust-badge').innerText = "Berechne...";
+
+    // Klassifizierung direkt auf dem Handy ausführen
+    const predictions = await model.classify(previewImg);
+
+    if (predictions && predictions.length > 0) {
+      let topMatch = predictions[0];
+      let recognizedName = topMatch.className.toLowerCase();
+      let confidence = Math.round(topMatch.probability * 100);
+
+      let foundKey = Object.keys(nutritionDB).find(key => recognizedName.includes(key));
+
+      if (foundKey) {
+        let food = nutritionDB[foundKey];
+        detectedProteinPer100g = food.protein;
+        document.getElementById('detected-food').innerText = "Erkannt: " + food.name;
+        document.getElementById('trust-badge').innerText = `KI-Vertrauen: ${confidence}%`;
+      } else {
+        // Standard-Schätzwert, falls die KI ein unbekanntes Essen erkennt
+        detectedProteinPer100g = 10;
+        document.getElementById('detected-food').innerText = "Erkannt: " + predictions[0].className.split(',')[0];
+        document.getElementById('trust-badge').innerText = `KI-Vertrauen: ${confidence}% (Geschätzt)`;
+      }
+
+      portionInput.value = 100;
+      recalculate();
+    }
   }
 
   function recalculate() {
     let grams = parseFloat(portionInput.value) || 0;
-    let total = (grams / 100) * selectedProteinPer100g;
+    let total = (grams / 100) * detectedProteinPer100g;
     calcProteinText.innerText = total.toFixed(1) + "g";
   }
 
   function addProtein() {
     let grams = parseFloat(portionInput.value) || 0;
-    let addedProtein = (grams / 100) * selectedProteinPer100g;
+    let addedProtein = (grams / 100) * detectedProteinPer100g;
     currentTotal += addedProtein;
     
     document.getElementById('current-protein').innerText = currentTotal.toFixed(1);
